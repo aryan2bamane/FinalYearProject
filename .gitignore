@@ -3,7 +3,7 @@ Assets
 MapApp2
 Project_Defense_QA.md
 ./Project_Defense_QA.md
-
+.venv/
 # Logs
 logs
 *.log

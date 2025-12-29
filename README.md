@@ -1,68 +1,56 @@
 # Voice Enabled Map UI
 
-Welcome to the **Voice Enabled Map UI** project! This application utilizes modern web technologies to create an interactive map experience that responds to voice commands.
+This repository contains a voice-enabled interactive map. The main map application lives under the `MapApp/` folder and is implemented as a Flask web app that uses server-side speech recognition and Leaflet on the client.
 
-## Features
+## Key features ✅
 
-- **Voice Control**: Navigate the map effortlessly using voice commands such as "zoom in," "zoom out," "move up," and "move down."
-- **Interactive Map**: Experience a smooth and intuitive map interface with drag-and-zoom functionality.
-- **Responsive Design**: The application adapts seamlessly to both desktop and mobile devices.
-- **Instant Feedback**: Voice commands are processed in real-time for a dynamic user experience.
+- **Voice Control (server-side)**: Capture audio via the server's microphone and process with `SpeechRecognition` for commands such as `navigate to <place>`, `zoom in/out`, `move up/down/left/right`, etc.
+- **Interactive Map**: UI uses Leaflet to display maps and layers (road, satellite, terrain).
+- **Realtime Communication**: `Flask-SocketIO` handles real-time events between the browser and server.
+- **Geocoding**: `geopy` (Nominatim) is used to resolve textual locations into coordinates.
 
-## Technologies Used
+## Project layout 🔧
 
-- **React**: A powerful library for building user interfaces.
-- **Leaflet**: An open-source library for mobile-friendly interactive maps.
-- **Vite**: A fast build tool and development server that enhances the development process.
-- **Web Speech API**: Enables voice recognition for a hands-free interaction.
+- `MapApp/` — Flask app (run `python app.py` inside this folder to start)
+  - `app.py` — server, socket handlers, speech recognition
+  - `requirements.txt` — Python dependencies for the Flask app
+  - `static/` — JS, CSS, and assets (Leaflet client code in `static/js/main.js`)
+  - `templates/index.html` — main page
+- `README.md` — this document
+- `REFs/`, `Journals/`, `Documentation/` — project resources
 
-## Getting Started
+## How to run the Map app (quick)
 
-To set up the project locally, follow these steps:
+1. Create and activate a virtual environment:
 
-1. **Clone the repository**:
-
-   ```bash
-   git clone https://github.com/aryan2bamane/FinalYearProject.git
-   cd ./MapApp
+   ```powershell
+   cd .\MapApp\
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
    ```
 
-2. **Install dependencies**:
+2. Install dependencies from `MapApp/requirements.txt`:
 
-   ```bash
-   pip install -r requirements.txt
+   ```powershell
+   pip install -r MapApp/requirements.txt
    ```
 
-3. **Run the application**:
+3. Run the app:
 
-   ```bash
+   ```powershell
+   cd MapApp
    python app.py
    ```
 
-4. **Open your browser** and go to `http://127.0.0.1:5000/`.
+4. Open http://localhost:5000 in your browser and click the microphone toggle to start voice commands.
 
-## Voice Commands
+> Note: This app uses the machine's microphone via Python's `SpeechRecognition` and `PyAudio` — on Windows you may need a pre-built PyAudio wheel or `pipwin install pyaudio`.
 
-Here are some useful voice commands you can try:
+## Contributing & Notes 🤝
 
-- **Zooming**:
-  - "zoom in"
-  - "zoom out"
+- Please open issues for bugs or feature requests.
+- Follow the usual fork → branch → PR workflow and add descriptive commit messages.
 
-- **Panning**:
-  - "move up"
-  - "move down"
-  - "move left"
-  - "move right"
+---
 
-## Contributing
-
-We welcome contributions! To get involved:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Implement your changes and commit them (`git commit -m 'Add new feature'`).
-4. Push your branch to the repository (`git push origin feature-branch`).
-5. Open a pull request.
-
-Thank you for your interest in enhancing the Voice Enabled Map UI! Enjoy exploring the project and contributing to its development.
+*Updated to reflect the Flask-based implementation in `MapApp/`.*
