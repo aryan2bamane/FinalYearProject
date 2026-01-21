@@ -1,0 +1,77 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = 'mapapp'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-repo/mapapp.git'
+            }
+        }
+        
+        stage('Lint & Test') {
+            steps {
+                script {
+                    dir('MapApp') {
+                        sh '''
+                            pip install flake8 pytest
+                            flake8 app.py static/js/*.js
+                            pytest --cov=app.py --cov-report=term-missing || true
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Build Docker') {
+            steps {
+                script {
+                    dir('MapApp') {
+                        sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                        sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                sh "docker run --rm aquasec/trivy image ${DOCKER_IMAGE}:${DOCKER_TAG}"
+            }
+        }
+        
+        stage('Deploy') {
+            when { branch 'main' }
+            steps {
+                script {
+                    sh """
+                        docker stop ${DOCKER_IMAGE} || true
+                        docker rm ${DOCKER_IMAGE} || true
+                        docker run -d \
+                            --name ${DOCKER_IMAGE} \
+                            -p 5000:5000 \
+                            -v /dev/snd:/dev/snd \
+                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            junit allowEmptyResults: true, testResults: '**/test-results.xml'
+            archiveArtifacts artifacts: 'MapApp/coverage/**', allowEmptyArchive: true
+        }
+        success {
+            sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+        }
+        failure {
+            slackSend channel: '#deploy', message: "Build failed: ${env.BUILD_URL}"
+        }
+    }
+}
