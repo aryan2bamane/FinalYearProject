@@ -32,13 +32,12 @@ This repository contains a voice-enabled interactive map. The main map applicati
 2. Install dependencies from `MapApp/requirements.txt`:
 
    ```powershell
-   pip install -r MapApp/requirements.txt
+   pip install -r requirements.txt
    ```
 
 3. Run the app:
 
    ```powershell
-   cd MapApp
    python app.py
    ```
 
