@@ -17,7 +17,7 @@ spec:
       containers:
         - name: voice-gis-app
           image: someone15me/voice-gis-app:latest   # Jenkins overwrites this
-          imagePullPolicy: Always                     # always pull new image
+          imagePullPolicy: IfNotPresent                     # always pull new image
           ports:
             - containerPort: 5000
           env:
