@@ -20,16 +20,19 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                  docker build -t $DOCKER_IMAGE ./MapApp
+                  # Build image without cache to include all changes
+                  docker build --no-cache -t $DOCKER_IMAGE ./MapApp
                 """
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')
-                ]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh """
                       echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                       docker push $DOCKER_IMAGE
@@ -38,24 +41,26 @@ pipeline {
                 }
             }
         }
-  stage('Deploy to Kubernetes') {
+
+        stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
-                    sh '''
+                    sh """
                         export KUBECONFIG=$KUBECONFIG_FILE
-                        # Delete old resources (optional, ensures no stale pods)
-                        kubectl delete deployment voice-gis-app --ignore-not-found
-                        kubectl delete service voice-gis-app --ignore-not-found
-                        kubectl delete ingress voice-gis-app-ingress --ignore-not-found
 
-                        # Apply manifests
-                        kubectl apply -f k8s/deployment.yaml
+                        # Delete old deployment/service if you want full cleanup
+                        # kubectl delete deployment voice-gis-app --ignore-not-found
+                        # kubectl delete service voice-gis-app --ignore-not-found
+
+                        # Apply manifests (deployment already exists, just update image)
                         kubectl apply -f k8s/service.yaml
-                        kubectl apply -f k8s/ingress.yaml
 
-                        # Wait for deployment rollout
-                        kubectl rollout status deployment/voice-gis-app --timeout=120s
-                    '''
+                        # Update deployment with the new image
+                        kubectl set image deployment/voice-gis-app voice-gis-app=$DOCKER_IMAGE --record
+
+                        # Wait for rollout to finish
+                        kubectl rollout status deployment/voice-gis-app --timeout=180s
+                    """
                 }
             }
         }
