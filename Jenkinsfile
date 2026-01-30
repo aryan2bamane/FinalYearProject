@@ -4,7 +4,7 @@ pipeline {
     environment {
         REGISTRY = "someone15me"
         IMAGE_NAME = "voice-gis-app"
-        DOCKER_TAG = "${BUILD_NUMBER}"                // unique per build
+        DOCKER_TAG = "${BUILD_NUMBER}"                
         DOCKER_IMAGE = "${REGISTRY}/${IMAGE_NAME}:${DOCKER_TAG}"
         KUBE_DEPLOYMENT = "voice-gis-app"
     }
@@ -23,6 +23,25 @@ pipeline {
                   # Build image without cache to include all changes
                   docker build --no-cache -t $DOCKER_IMAGE ./MapApp
                 """
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    sh """
+                        if ! command -v trivy >/dev/null 2>&1; then
+                          echo "Installing Trivy..."
+                          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+                          sudo mv trivy /usr/local/bin/
+                        fi
+
+                        trivy image \
+                          --severity HIGH,CRITICAL \
+                          --ignore-unfixed \
+                          $DOCKER_IMAGE
+                    """
+                }
             }
         }
 
