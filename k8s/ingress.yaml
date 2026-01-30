@@ -7,7 +7,8 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - http:
+    - host: ""  # Empty means catch all requests
+      http:
         paths:
           - path: /
             pathType: Prefix
@@ -15,4 +16,4 @@ spec:
               service:
                 name: voice-gis-app
                 port:
-                  number: 5000
+                  number: 80

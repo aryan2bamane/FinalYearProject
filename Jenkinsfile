@@ -2,7 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "someone15me/voice-gis-app:latest"
+        REGISTRY = "someone15me"
+        IMAGE_NAME = "voice-gis-app"
+        # Dynamically tag the image with BUILD_NUMBER to force Kubernetes to pull the new image
+        DOCKER_IMAGE = "${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
     }
 
     stages {
@@ -13,25 +16,21 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
+        stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE ./MapApp'
+                sh '''
+                    docker build -t $DOCKER_IMAGE ./MapApp
+                '''
             }
         }
 
-        stage('Docker Login & Push') {
+        stage('Push to Docker Hub') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                      docker push $DOCKER_IMAGE
-                      docker logout
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                        docker logout
                     '''
                 }
             }
@@ -39,15 +38,21 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')
-                ]) {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     sh '''
-                      export KUBECONFIG=$KUBECONFIG_FILE
-                      kubectl apply -f k8s/deployment.yaml
-                      kubectl apply -f k8s/service.yaml
-                      kubectl apply -f k8s/ingress.yaml
-                      kubectl rollout status deployment/voice-gis-app --timeout=120s
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        # Delete old resources (optional, ensures no stale pods)
+                        kubectl delete deployment voice-gis-app --ignore-not-found
+                        kubectl delete service voice-gis-app --ignore-not-found
+                        kubectl delete ingress voice-gis-app-ingress --ignore-not-found
+
+                        # Apply manifests
+                        kubectl apply -f k8s/deployment.yaml
+                        kubectl apply -f k8s/service.yaml
+                        kubectl apply -f k8s/ingress.yaml
+
+                        # Wait for deployment rollout
+                        kubectl rollout status deployment/voice-gis-app --timeout=120s
                     '''
                 }
             }
@@ -55,7 +60,11 @@ pipeline {
     }
 
     post {
-        success { echo "CI/CD SUCCESS" }
-        failure { echo "CI/CD FAILED" }
+        success {
+            echo "✅ CI/CD Pipeline SUCCESS"
+        }
+        failure {
+            echo "❌ CI/CD Pipeline FAILED"
+        }
     }
 }
