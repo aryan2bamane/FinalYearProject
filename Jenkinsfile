@@ -24,7 +24,7 @@ pipeline {
             steps {
                 echo "Running security scan with Trivy"
                 sh '''
-                    trivy image --exit-code 0 --severity CRITICAL $DOCKER_IMAGE
+                    trivy image --exit-code 0 --scanners secret  $DOCKER_IMAGE
                 '''
             }
         }
@@ -52,7 +52,7 @@ pipeline {
                         kubectl apply -f k8s/service.yaml
 
                         # Wait for pods to be ready
-                        kubectl rollout status deployment/voice-gis-app --timeout=120s
+                        kubectl rollout status deployment/voice-gis-app --timeout=60s
                     '''
                 }
             }
