@@ -3,10 +3,9 @@ kind: Service
 metadata:
   name: voice-gis-app
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: voice-gis-app
   ports:
     - port: 5000
       targetPort: 5000
-      nodePort: 30180

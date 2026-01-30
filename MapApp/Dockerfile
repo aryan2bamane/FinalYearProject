@@ -23,4 +23,4 @@ RUN useradd -u 1000 appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 5000
-CMD ["python", "app.py"]
+CMD ["python", "-u", "app.py"]

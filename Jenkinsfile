@@ -15,9 +15,7 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                sh '''
-                  docker build -t $DOCKER_IMAGE ./MapApp
-                '''
+                sh 'docker build -t $DOCKER_IMAGE ./MapApp'
             }
         }
 
@@ -48,6 +46,7 @@ pipeline {
                       export KUBECONFIG=$KUBECONFIG_FILE
                       kubectl apply -f k8s/deployment.yaml
                       kubectl apply -f k8s/service.yaml
+                      kubectl apply -f k8s/ingress.yaml
                       kubectl rollout status deployment/voice-gis-app --timeout=120s
                     '''
                 }
@@ -56,11 +55,7 @@ pipeline {
     }
 
     post {
-        success {
-            echo "CI/CD Pipeline SUCCESS"
-        }
-        failure {
-            echo "CI/CD Pipeline FAILED"
-        }
+        success { echo "CI/CD SUCCESS" }
+        failure { echo "CI/CD FAILED" }
     }
 }
