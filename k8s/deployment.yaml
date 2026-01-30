@@ -1,38 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: voice-gis-app
-  labels:
-    app: voice-gis-app
+  name: voice-gis-app-{{COLOR}}
 spec:
-  replicas: 2  # 2 pods for zero-downtime rolling update
+  replicas: 2
   selector:
     matchLabels:
-      app: voice-gis-app
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      app: {{COLOR}}
   template:
     metadata:
       labels:
-        app: voice-gis-app
+        app: {{COLOR}}
     spec:
       containers:
-      - name: mapapp
+      - name: voice-gis-app
         image: someone15me/voice-gis-app:latest
         ports:
         - containerPort: 5000
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 5000
           initialDelaySeconds: 5
-          periodSeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 10
-          periodSeconds: 20
+          periodSeconds: 5
