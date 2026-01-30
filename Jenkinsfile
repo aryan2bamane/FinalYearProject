@@ -54,13 +54,7 @@ pipeline {
         }
         stage('Checkup!') {
             steps {
-                withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')
-                ]) {
-                    sh '''
-                      kubectl get all
-                    '''
-                }
+                sh '''kubectl get all'''
             }
         }
     }
