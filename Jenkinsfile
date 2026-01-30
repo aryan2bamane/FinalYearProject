@@ -91,7 +91,7 @@ pipeline {
                       kubectl set image deployment/voice-gis-app \
                         voice-gis-app=$IMAGE_BUILD
 
-                      // kubectl rollout status deployment/voice-gis-app --timeout=180s
+                      # kubectl rollout status deployment/voice-gis-app --timeout=180s
                     '''
                 }
             }
