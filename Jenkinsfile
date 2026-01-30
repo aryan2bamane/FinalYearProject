@@ -4,7 +4,7 @@ pipeline {
     environment {
         REGISTRY = "someone15me"
         IMAGE_NAME = "voice-gis-app"
-        # Dynamically tag the image with BUILD_NUMBER to force Kubernetes to pull the new image
+        // # Dynamically tag the image with BUILD_NUMBER to force Kubernetes to pull the new image
         DOCKER_IMAGE = "${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
     }
 
