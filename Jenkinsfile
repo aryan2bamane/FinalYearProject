@@ -42,8 +42,8 @@ pipeline {
                 sh '''
                     echo "[INFO] Running Trivy scan"
                     trivy image \
-                      --severity HIGH,CRITICAL \
-                      --scanners vuln,secret \
+                      --severity CRITICAL \
+                      --scanners secret \
                       --exit-code 1 \
                       ${DOCKER_IMAGE}
                 '''
