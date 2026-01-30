@@ -52,11 +52,6 @@ pipeline {
                 }
             }
         }
-        stage('Checkup!') {
-            steps {
-                sh '''kubectl get all'''
-            }
-        }
     }
 
     post {
