@@ -22,9 +22,10 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                    sh '''
-                        trivy image --exit-code 0 --severity CRITICAL someone15me/voice-gis-app:latest
-                    '''
+                echo "Running security scan with Trivy"
+                sh '''
+                    trivy image --exit-code 0 --severity CRITICAL $DOCKER_IMAGE
+                '''
             }
         }
 
@@ -56,14 +57,14 @@ pipeline {
                 }
             }
         }
-
+    }
 
     post {
         success {
             echo "🎉 Pipeline completed successfully!"
         }
         failure {
-            echo "🚨 Pipeline failed. Check logs above. Rollback may have occurred."
+            echo "🚨 Pipeline failed. Check logs above."
         }
     }
 }
