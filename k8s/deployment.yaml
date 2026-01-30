@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: voice-gis-app-{{COLOR}}
+  name: voice-gis-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: {{COLOR}}
+      app: voice-gis-app
   template:
     metadata:
       labels:
-        app: {{COLOR}}
+        app: voice-gis-app
     spec:
       containers:
       - name: voice-gis-app
