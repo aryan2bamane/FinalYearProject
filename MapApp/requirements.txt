@@ -1,12 +1,6 @@
-# Minimal dependencies for MapApp (Flask + server-side speech recognition)
 Flask==3.0.3
 Flask-SocketIO==5.3.7
-eventlet==0.33.3
 geopy==2.4.1
 SpeechRecognition==3.10.4
 PyAudio==0.2.14
 requests==2.32.3
-
-# Optional / deployment
-# gunicorn==23.0.0
-
