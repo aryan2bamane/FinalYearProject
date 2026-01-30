@@ -1,34 +1,48 @@
-# Use Python slim image
-FROM python:3.11-slim
+########################
+# 1️⃣ Builder stage
+########################
+FROM python:3.11-slim AS builder
 
-# Set working directory
-WORKDIR /app
+WORKDIR /build
 
-# Environment settings
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Install system dependencies required for PyAudio & audio processing
-RUN apt-get update && apt-get install -y \
-    gcc \
+# Build deps (ONLY here)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     portaudio19-dev \
     ffmpeg \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
 COPY requirements.txt .
 
-# Upgrade pip and install dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Install Python deps into a temp directory
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Copy application code
+
+########################
+# 2️⃣ Runtime stage
+########################
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Runtime-only libs (NO compiler)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    portaudio19-dev \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy prebuilt Python packages
+COPY --from=builder /install /usr/local
+
 COPY . .
 
-# Expose Flask port
-EXPOSE 5000
+RUN useradd -u 1000 appuser && chown -R appuser /app
+USER appuser
 
-# Run the app
-CMD ["python", "app.py"]
+EXPOSE 5000
+CMD ["python", "-u", "app.py"]

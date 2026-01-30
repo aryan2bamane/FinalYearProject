@@ -2,20 +2,21 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
+        REGISTRY = "someone15me"
+        IMAGE_NAME = "voice-gis-app"
+        BUILD_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
-        stage('Checkout Code') {
+
+        stage('Checkout') {
             steps {
                 checkout scm
-            }
-            post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                script {
+                    GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
                 }
             }
         }
@@ -23,92 +24,93 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh '''
-                      docker build -t $DOCKER_IMAGE ./MapApp
-                    '''
-                }
-            }
-            post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                    IMAGE_BUILD = "${REGISTRY}/${IMAGE_NAME}:${BUILD_TAG}"
+                    IMAGE_COMMIT = "${REGISTRY}/${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
+                    IMAGE_LATEST = "${REGISTRY}/${IMAGE_NAME}:latest"
+
+                    sh """
+                      docker build \
+                        -t ${IMAGE_BUILD} \
+                        -t ${IMAGE_COMMIT} \
+                        -t ${IMAGE_LATEST} \
+                        ./MapApp
+                    """
                 }
             }
         }
 
-        stage('Docker Hub Login') {
+        stage('Trivy Image Scan') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKERHUB_USER',
-                        passwordVariable: 'DOCKERHUB_PASS'
-                    )
-                ]) {
-                    sh '''
-                      echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
-                    '''
-                }
-            }
-            post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    sh """
+                      if ! command -v trivy >/dev/null 2>&1; then
+                        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+                        sudo mv trivy /usr/local/bin/
+                      fi
+
+                      trivy image \
+                        --severity HIGH,CRITICAL \
+                        --ignore-unfixed \
+                        ${IMAGE_BUILD}
+                    """
                 }
             }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                      docker push ${IMAGE_BUILD}
+                      docker push ${IMAGE_COMMIT}
+                      docker push ${IMAGE_LATEST}
+
+                      docker logout
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh """
+                        export KUBECONFIG=$KUBECONFIG_FILE
+
+                        kubectl set image deployment/voice-gis-app \
+                          voice-gis-app=${IMAGE_BUILD}
+
+                        kubectl rollout status deployment/voice-gis-app --timeout=180s
+                    """
+                }
+            }
+        }
+
+        stage('Docker Cleanup') {
             steps {
                 sh '''
-                  docker push $DOCKER_IMAGE
+                  docker image prune -f
+                  docker builder prune -f
                 '''
-            }
-            post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
-            }
-        }
-
-        stage('Deploy with Docker Compose') {
-            steps {
-                sh '''
-                  echo "Stopping existing container if running..."
-                  docker rm -f voice_gis_app || true
-
-                  echo "Deploying latest version..."
-                  docker compose pull
-                  docker compose up -d
-                '''
-            }
-            post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
             }
         }
     }
 
     post {
         success {
-            echo '🎉 Pipeline completed successfully!'
+            echo "✅ CI/CD Pipeline SUCCESS"
         }
         failure {
-            echo '🚨 Pipeline failed — check the failed stage above'
+            echo "❌ CI/CD Pipeline FAILED"
         }
         always {
-            sh 'docker logout || true'
+            sh 'df -h'
         }
     }
 }
