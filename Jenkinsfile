@@ -3,20 +3,20 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
+        DOCKERHUB_USER = credentials('dockerhub-username')
+        DOCKERHUB_PASS = credentials('dockerhub-password')
+        KUBECONFIG = credentials('kubeconfig')
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 checkout scm
             }
             post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
             }
         }
 
@@ -24,17 +24,26 @@ pipeline {
             steps {
                 script {
                     sh '''
+                      docker build -t someone15me/voice-gis-app:latest .
                       docker build -t $DOCKER_IMAGE ./MapApp
                     '''
                 }
             }
             post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                sh '''
+                  trivy image --exit-code 1 someone15me/voice-gis-app:latest
+                '''
+            }
+            post {
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
             }
         }
 
@@ -53,28 +62,41 @@ pipeline {
                 }
             }
             post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
             }
         }
 
         stage('Push Image to Docker Hub') {
             steps {
                 sh '''
+                  docker push someone15me/voice-gis-app:latest
                   docker push $DOCKER_IMAGE
                 '''
             }
             post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
+            }
+        }
+
+        stage('Deploy to Minikube') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                      export KUBECONFIG=$KUBECONFIG_FILE
+
+                      kubectl apply -f k8s/service.yaml
+                      kubectl apply -f k8s/deployment.yaml
+
+                      kubectl rollout status deployment/voice-gis-app --timeout=120s || \
+                      kubectl rollout undo deployment/voice-gis-app
+                    '''
                 }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
+            }
+            post {
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
             }
         }
 
@@ -90,22 +112,18 @@ pipeline {
                 '''
             }
             post {
-                failure {
-                    echo "❌ Stage failed: ${env.STAGE_NAME}"
-                }
-                success {
-                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
-                }
+                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
+                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
             }
         }
     }
 
     post {
         success {
-            echo '🎉 Pipeline completed successfully!'
+            echo "🎉 Pipeline completed successfully!"
         }
         failure {
-            echo '🚨 Pipeline failed — check the failed stage above'
+            echo "🚨 Pipeline failed — check the failed stage above"
         }
         always {
             sh 'docker logout || true'
