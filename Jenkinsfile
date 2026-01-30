@@ -49,8 +49,8 @@ pipeline {
                         export KUBECONFIG=$KUBECONFIG_FILE
 
                         # Delete old deployment/service if you want full cleanup
-                        # kubectl delete deployment voice-gis-app --ignore-not-found
-                        # kubectl delete service voice-gis-app --ignore-not-found
+                        kubectl delete deployment voice-gis-app --ignore-not-found
+                        kubectl delete service voice-gis-app --ignore-not-found
 
                         # Apply manifests (deployment already exists, just update image)
                         kubectl apply -f k8s/service.yaml
