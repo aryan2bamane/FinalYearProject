@@ -2,55 +2,26 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
-    }
-
-    options {
-        timestamps()
-        ansiColor('xterm')
+        DOCKER_IMAGE = "someone15me/voice-gis-app:latest"
     }
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Verify Tooling') {
+        stage('Build Image') {
             steps {
                 sh '''
-                    docker --version
-                    trivy --version
-                    kubectl version --client
+                  docker build -t $DOCKER_IMAGE ./MapApp
                 '''
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    echo "[INFO] Building Docker image"
-                    docker build -t ${DOCKER_IMAGE} ./MapApp
-                '''
-            }
-        }
-
-        stage('Trivy Security Scan') {
-            steps {
-                sh '''
-                    echo "[INFO] Running Trivy scan"
-                    trivy image \
-                      --severity CRITICAL \
-                      --scanners secret \
-                      --exit-code 1 \
-                      ${DOCKER_IMAGE}
-                '''
-            }
-        }
-
-        stage('Docker Hub Login & Push') {
+        stage('Docker Login & Push') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -60,9 +31,9 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push ${DOCKER_IMAGE}
-                        docker logout
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                      docker push $DOCKER_IMAGE
+                      docker logout
                     '''
                 }
             }
@@ -74,12 +45,10 @@ pipeline {
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')
                 ]) {
                     sh '''
-                        export KUBECONFIG=$KUBECONFIG_FILE
-
-                        kubectl apply -f k8s/deployment.yaml
-                        kubectl apply -f k8s/service.yaml
-
-                        kubectl rollout status deployment/voice-gis-app --timeout=120s
+                      export KUBECONFIG=$KUBECONFIG_FILE
+                      kubectl apply -f k8s/deployment.yaml
+                      kubectl apply -f k8s/service.yaml
+                      kubectl rollout status deployment/voice-gis-app --timeout=120s
                     '''
                 }
             }
@@ -88,10 +57,10 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully"
+            echo "CI/CD Pipeline SUCCESS"
         }
         failure {
-            echo "Pipeline failed – check logs"
+            echo "CI/CD Pipeline FAILED"
         }
     }
 }

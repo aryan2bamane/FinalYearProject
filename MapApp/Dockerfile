@@ -1,14 +1,10 @@
-# Use Python slim image
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Environment settings
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies required for PyAudio & audio processing
 RUN apt-get update && apt-get install -y \
     gcc \
     build-essential \
@@ -17,18 +13,14 @@ RUN apt-get update && apt-get install -y \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Upgrade pip and install dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
 COPY . .
 
-# Expose Flask port
-EXPOSE 5000
+# ✅ Create non-root user (IMPORTANT)
+RUN useradd -u 1000 appuser && chown -R appuser /app
+USER appuser
 
-# Run the app
+EXPOSE 5000
 CMD ["python", "app.py"]

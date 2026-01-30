@@ -1,16 +1,22 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO, emit
 from geopy.geocoders import Nominatim
-
 import speech_recognition as sr
 import re
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode="threading")
 
-# Initialize Speech Recognizer and Geocoder globally
 recognizer = sr.Recognizer()
 geolocator = Nominatim(user_agent="address_geocoder")
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
 
 # Command patterns
 COMMAND_PATTERNS = {
@@ -23,9 +29,6 @@ COMMAND_PATTERNS = {
     'marker': r"add (a )?marker (at|on) (.+)"
 }
 
-@app.route('/')
-def index():
-    return render_template('index.html')
 
 def recognize_speech():
     with sr.Microphone() as source:
@@ -53,9 +56,6 @@ def process_command(command):
             }
     return None
 
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"}), 200
 
 
 @socketio.on('start_recognition')
@@ -133,10 +133,10 @@ def handle_recognition():
         print(f"Error processing command: {e}")
         emit('recognized_command', {'error': 'Error processing command'})
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     socketio.run(
         app,
-        host='0.0.0.0',
+        host="0.0.0.0",
         port=5000,
-        debug=True
+        debug=False
     )
