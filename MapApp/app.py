@@ -53,6 +53,11 @@ def process_command(command):
             }
     return None
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 @socketio.on('start_recognition')
 def handle_recognition():
     command = recognize_speech()
