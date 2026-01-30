@@ -2,14 +2,21 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "someone15me/voice-gis-app:latest"
+        DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
                 checkout scm
+            }
+            post {
+                failure {
+                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                }
+                success {
+                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                }
             }
         }
 
@@ -19,6 +26,14 @@ pipeline {
                     sh '''
                       docker build -t $DOCKER_IMAGE ./MapApp
                     '''
+                }
+            }
+            post {
+                failure {
+                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                }
+                success {
+                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
                 }
             }
         }
@@ -37,6 +52,14 @@ pipeline {
                     '''
                 }
             }
+            post {
+                failure {
+                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                }
+                success {
+                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                }
+            }
         }
 
         stage('Push Image to Docker Hub') {
@@ -45,28 +68,47 @@ pipeline {
                   docker push $DOCKER_IMAGE
                 '''
             }
+            post {
+                failure {
+                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                }
+                success {
+                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                }
+            }
         }
 
         stage('Deploy with Docker Compose') {
             steps {
                 sh '''
-                  docker compose down
+                  echo "Stopping existing container if running..."
+                  docker rm -f voice_gis_app || true
+
+                  echo "Deploying latest version..."
                   docker compose pull
                   docker compose up -d
                 '''
+            }
+            post {
+                failure {
+                    echo "❌ Stage failed: ${env.STAGE_NAME}"
+                }
+                success {
+                    echo "✅ Stage succeeded: ${env.STAGE_NAME}"
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment successful!"
+            echo '🎉 Pipeline completed successfully!'
         }
         failure {
-            echo "❌ Deployment failed. Check logs."
+            echo '🚨 Pipeline failed — check the failed stage above'
         }
         always {
-            sh 'docker logout'
+            sh 'docker logout || true'
         }
     }
 }
