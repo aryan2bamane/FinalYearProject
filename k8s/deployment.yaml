@@ -1,60 +1,15 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
   name: voice-gis-app
   labels:
     app: voice-gis-app
 spec:
-  replicas: 2
+  type: ClusterIP
   selector:
-    matchLabels:
-      app: voice-gis-app
-  template:
-    metadata:
-      labels:
-        app: voice-gis-app
-    spec:
-      containers:
-        - name: voice-gis-app
-          image: someone15me/voice-gis-app:latest
-          imagePullPolicy: Always
-
-          ports:
-            - containerPort: 5000
-
-          env:
-            - name: PYTHONUNBUFFERED
-              value: "1"
-            - name: PYTHONDONTWRITEBYTECODE
-              value: "1"
-
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
-
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 5000
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            timeoutSeconds: 2
-            failureThreshold: 5
-
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 5000
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 2
-            failureThreshold: 3
-
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1000
+    app: voice-gis-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
