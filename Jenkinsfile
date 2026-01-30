@@ -56,7 +56,7 @@ pipeline {
                         kubectl apply -f k8s/service.yaml
 
                         # Update deployment with the new image
-                        kubectl set image deployment/voice-gis-app voice-gis-app=$DOCKER_IMAGE --record
+                        kubectl set image deployment/voice-gis-app voice-gis-app=$DOCKER_IMAGE 
 
                         # Wait for rollout to finish
                         kubectl rollout status deployment/voice-gis-app --timeout=180s
