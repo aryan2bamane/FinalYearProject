@@ -3,9 +3,6 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
-        DOCKERHUB_USER = credentials('dockerhub-username')
-        DOCKERHUB_PASS = credentials('dockerhub-password')
-        KUBECONFIG = credentials('kubeconfig')
     }
 
     stages {
@@ -14,106 +11,89 @@ pipeline {
             steps {
                 checkout scm
             }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
-            }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh '''
-                      docker build -t someone15me/voice-gis-app:latest .
-                      docker build -t $DOCKER_IMAGE ./MapApp
-                    '''
-                }
-            }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
         }
 
         stage('Trivy Security Scan') {
             steps {
-                sh '''
-                  trivy image --exit-code 1 someone15me/voice-gis-app:latest
-                '''
-            }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
-            }
-        }
-
-        stage('Docker Hub Login') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKERHUB_USER',
-                        passwordVariable: 'DOCKERHUB_PASS'
-                    )
-                ]) {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
                     sh '''
-                      echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+                        export NVD_API_KEY=$NVD_API_KEY
+                        trivy image --exit-code 1 $DOCKER_IMAGE || exit 1
                     '''
                 }
             }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
-            }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Docker Hub Login & Push') {
             steps {
-                sh '''
-                  docker push someone15me/voice-gis-app:latest
-                  docker push $DOCKER_IMAGE
-                '''
-            }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
-            }
-        }
-
-        stage('Deploy to Minikube') {
-            steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                      export KUBECONFIG=$KUBECONFIG_FILE
-
-                      kubectl apply -f k8s/service.yaml
-                      kubectl apply -f k8s/deployment.yaml
-
-                      kubectl rollout status deployment/voice-gis-app --timeout=120s || \
-                      kubectl rollout undo deployment/voice-gis-app
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                        docker logout
                     '''
                 }
             }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
-            }
         }
 
-        stage('Deploy with Docker Compose') {
+        stage('Blue-Green Deployment') {
             steps {
-                sh '''
-                  echo "Stopping existing container if running..."
-                  docker rm -f voice_gis_app || true
+                withCredentials([file(credentialsId: 'kubeconfig.yaml', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
 
-                  echo "Deploying latest version..."
-                  docker compose pull
-                  docker compose up -d
-                '''
-            }
-            post {
-                success { echo "✅ Stage succeeded: ${env.STAGE_NAME}" }
-                failure { echo "❌ Stage failed: ${env.STAGE_NAME}" }
+                        # Determine current live deployment
+                        CURRENT=$(kubectl get svc voice-gis-app -o jsonpath='{.spec.selector.app}' || echo "")
+                        if [ "$CURRENT" == "blue" ]; then
+                            NEW_COLOR="green"
+                        else
+                            NEW_COLOR="blue"
+                        fi
+                        echo "Current live deployment: $CURRENT, deploying new version to: $NEW_COLOR"
+
+                        # Deploy new color
+                        sed "s/{{COLOR}}/$NEW_COLOR/g" k8s/deployment.yaml | kubectl apply -f -
+
+                        # Wait for pods to be ready
+                        echo "Waiting for new pods to become ready..."
+                        kubectl rollout status deployment/voice-gis-app-$NEW_COLOR --timeout=120s
+
+                        # Optional: HTTP health check
+                        POD_NAME=$(kubectl get pods -l app=$NEW_COLOR -o jsonpath='{.items[0].metadata.name}')
+                        for i in {1..12}; do
+                            STATUS_CODE=$(kubectl exec $POD_NAME -- curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/health || echo 0)
+                            if [ "$STATUS_CODE" == "200" ]; then
+                                echo "Pod $POD_NAME is healthy"
+                                break
+                            fi
+                            echo "Waiting for pod health... ($i/12)"
+                            sleep 5
+                        done
+
+                        if [ "$STATUS_CODE" != "200" ]; then
+                            echo "❌ Health check failed! Rolling back..."
+                            if [ ! -z "$CURRENT" ]; then
+                                kubectl rollout undo deployment/voice-gis-app-$NEW_COLOR
+                            fi
+                            exit 1
+                        fi
+
+                        # Switch service to new color
+                        kubectl patch svc voice-gis-app -p '{"spec":{"selector":{"app":"'"$NEW_COLOR"'"}}}'
+                        echo "✅ Service switched to $NEW_COLOR"
+
+                        # Optional: clean up old deployment
+                        if [ ! -z "$CURRENT" ]; then
+                            kubectl delete deployment voice-gis-app-$CURRENT || true
+                        fi
+                    '''
+                }
             }
         }
     }
@@ -123,10 +103,7 @@ pipeline {
             echo "🎉 Pipeline completed successfully!"
         }
         failure {
-            echo "🚨 Pipeline failed — check the failed stage above"
-        }
-        always {
-            sh 'docker logout || true'
+            echo "🚨 Pipeline failed. Check logs above. Rollback may have occurred."
         }
     }
 }
