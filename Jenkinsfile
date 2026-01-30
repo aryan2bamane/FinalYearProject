@@ -5,6 +5,11 @@ pipeline {
         DOCKER_IMAGE = 'someone15me/voice-gis-app:latest'
     }
 
+    options {
+        timestamps()
+        ansiColor('xterm')
+    }
+
     stages {
 
         stage('Checkout Code') {
@@ -13,28 +18,50 @@ pipeline {
             }
         }
 
+        stage('Verify Tooling') {
+            steps {
+                sh '''
+                    docker --version
+                    trivy --version
+                    kubectl version --client
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image from ./MapApp"
-                sh 'docker build -t $DOCKER_IMAGE ./MapApp'
+                sh '''
+                    echo "[INFO] Building Docker image"
+                    docker build -t ${DOCKER_IMAGE} ./MapApp
+                '''
             }
         }
 
         stage('Trivy Security Scan') {
             steps {
-                echo "Running security scan with Trivy"
                 sh '''
-                    trivy image --exit-code 0 --scanners secret  $DOCKER_IMAGE
+                    echo "[INFO] Running Trivy scan"
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --scanners vuln,secret \
+                      --exit-code 1 \
+                      ${DOCKER_IMAGE}
                 '''
             }
         }
 
         stage('Docker Hub Login & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $DOCKER_IMAGE
+                        docker push ${DOCKER_IMAGE}
                         docker logout
                     '''
                 }
@@ -43,16 +70,16 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                withCredentials([
+                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')
+                ]) {
                     sh '''
                         export KUBECONFIG=$KUBECONFIG_FILE
 
-                        # Apply deployment and service
                         kubectl apply -f k8s/deployment.yaml
                         kubectl apply -f k8s/service.yaml
 
-                        # Wait for pods to be ready
-                        kubectl rollout status deployment/voice-gis-app --timeout=60s
+                        kubectl rollout status deployment/voice-gis-app --timeout=120s
                     '''
                 }
             }
@@ -61,10 +88,10 @@ pipeline {
 
     post {
         success {
-            echo "🎉 Pipeline completed successfully!"
+            echo "Pipeline completed successfully"
         }
         failure {
-            echo "🚨 Pipeline failed. Check logs above."
+            echo "Pipeline failed – check logs"
         }
     }
 }
