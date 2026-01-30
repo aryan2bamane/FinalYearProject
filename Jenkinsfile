@@ -58,9 +58,7 @@ pipeline {
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')
                 ]) {
                     sh '''
-                      kubectl get ingress
-                      kubectl describe ingress voice-gis-app-ingress
-                      kubectl get pods -n ingress-nginx
+                      kubectl get all
                     '''
                 }
             }
