@@ -16,9 +16,8 @@ spec:
     spec:
       containers:
         - name: voice-gis-app
-          # This will be replaced dynamically in Jenkins pipeline via tag
-          image: someone15me/voice-gis-app:latest
-          imagePullPolicy: Always
+          image: someone15me/voice-gis-app:latest   # Jenkins will overwrite with set image
+          imagePullPolicy: Always                     # Always pull new image
           ports:
             - containerPort: 5000
           env:

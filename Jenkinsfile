@@ -4,8 +4,9 @@ pipeline {
     environment {
         REGISTRY = "someone15me"
         IMAGE_NAME = "voice-gis-app"
-        // # Dynamically tag the image with BUILD_NUMBER to force Kubernetes to pull the new image
-        DOCKER_IMAGE = "${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+        DOCKER_TAG = "${BUILD_NUMBER}"                // unique per build
+        DOCKER_IMAGE = "${REGISTRY}/${IMAGE_NAME}:${DOCKER_TAG}"
+        KUBE_DEPLOYMENT = "voice-gis-app"
     }
 
     stages {
@@ -18,25 +19,26 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t $DOCKER_IMAGE ./MapApp
-                '''
+                sh """
+                  docker build -t $DOCKER_IMAGE ./MapApp
+                """
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $DOCKER_IMAGE
-                        docker logout
-                    '''
+                withCredentials([
+                    usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')
+                ]) {
+                    sh """
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                      docker push $DOCKER_IMAGE
+                      docker logout
+                    """
                 }
             }
         }
-
-        stage('Deploy to Kubernetes') {
+  stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     sh '''

@@ -7,5 +7,5 @@ spec:
   selector:
     app: voice-gis-app
   ports:
-    - port: 80          # Exposed as port 80 internally
-      targetPort: 5000  # Maps to container port
+    - port: 80        # Expose via ingress
+      targetPort: 5000
